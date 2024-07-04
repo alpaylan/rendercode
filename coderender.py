@@ -235,24 +235,20 @@ colors = {
     "dkgreen": (0, int(0.6 * 255), 0),
     "ltgreen": (200, 255, 200),
     "bggreen": (200, 255, 200),
-
     "dkblue": (0, 0, 255),
     "ltblue": (0, int(0.4 * 255), int(0.4 * 255)),
     "bgblue": (220, 220, 255),
-    
     "dkviolet": (int(0.3 * 255), 0, int(0.5 * 255)),
     "ltviolet": (255, 200, 255),
     "bgviolet": (255, 200, 255),
-    
     "dkpurple": (int(0.5 * 255), 0, int(0.3 * 255)),
     "ltpurple": (255, 220, 255),
     "bgpurple": (255, 220, 255),
-    
     "dkred": (int(0.5 * 255), 0, 0),
     "ltred": (255, 210, 210),
     "bgred": (255, 210, 210),
-    
     "black": (0, 0, 0),
+    "white": (255, 255, 255),
 }
 
 ligatures = {
@@ -266,6 +262,7 @@ ligatures = {
     "===>": "==>",
 }
 
+
 def tokenize(code):
     # A token is either a string or a whitespace character
     tokens = []
@@ -277,11 +274,10 @@ def tokenize(code):
                 current_token = ""
             tokens.append(char)
         else:
-            current_token += char 
+            current_token += char
     if current_token:
         tokens.append(current_token)
     return tokens
-
 
 
 def line_widths(elements):
@@ -302,8 +298,10 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
         # "N": ImageFont.truetype("Libertine/LinLibertine_R.ttf", font_size),
         # "B": ImageFont.truetype("Libertine/LinLibertine_RB.ttf", font_size),
         # "I": ImageFont.truetype("Libertine/LinLibertine_RI.ttf", font_size),
-        'N': ImageFont.truetype("Inconsolata/static/Inconsolata-Regular.ttf", font_size),
-        'B': ImageFont.truetype("Inconsolata/static/Inconsolata-Bold.ttf", font_size),
+        "N": ImageFont.truetype(
+            "Inconsolata/static/Inconsolata-Regular.ttf", font_size
+        ),
+        "B": ImageFont.truetype("Inconsolata/static/Inconsolata-Bold.ttf", font_size),
         # 'I': ImageFont.truetype("/Users/akeles/Programming/projects/PbtBenchmark/coderenderer/Inconsolata/static/Incosolata-Italic.ttf", font_size),
     }
 
@@ -313,18 +311,21 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
     code = code.strip()
     elements = []
 
+    def marker_to_element(marker):
+        return {
+            "type": "line_based_rounded_rectangle",
+            "lines": marker["lines"],
+            "fill": colors["bg" + marker["color"]],
+            "outline": colors["dk" + marker["color"]],
+            "children": list(map(marker_to_element, marker.get("children", []))),
+            "label": marker.get("label"),
+            "width": 3,
+            "radius": 5,
+            "z": 0,
+        }
+
     for marker in markers:
-        elements.append(
-            {
-                "type": "line_based_rounded_rectangle",
-                "lines": marker["lines"],
-                "fill": colors["bg" + marker["color"]],
-                "outline": colors["dk" + marker["color"]],
-                "width": 3,
-                "radius": 5,
-                "z": 0,
-            }
-        )
+        elements.append(marker_to_element(marker))
 
     CODE_START_AT = 10
     LINE_HEIGHT = font_size * 6 // 5
@@ -334,7 +335,7 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
     line = 1
 
     if line_numbers:
-        CODE_START_AT = 50
+        CODE_START_AT = 10 + font_size * 2
         x = CODE_START_AT
 
         for i in range(1, code.count("\n") + 2):
@@ -408,9 +409,34 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
     # Height is LINE_HEIGHT per line, plus 20 for padding
     height = (1 + code.count("\n")) * LINE_HEIGHT + 20
     # Width is the width of the longest line, plus 20 for padding, and 50 if line numbers are enabled
-    width = max(line_widths(elements)) + CODE_START_AT + (LINE_HEIGHT if line_numbers else 20)
+    width = (
+        max(line_widths(elements))
+        + CODE_START_AT
+        + (LINE_HEIGHT if line_numbers else 20)
+    )
     img = Image.new("RGB", (width, height), (255, 255, 255))
     draw = ImageDraw.Draw(img)
+
+    def render_rounded_rectangle(element):
+        left = 999999
+        right = 0
+        for line in range(element["lines"][0], element["lines"][1] + 1):
+            line_tokens = list(
+                filter(lambda x: x["type"] == "text" and x["line"] == line, elements)
+            )
+            line_tokens = list(
+                filter(lambda x: x["text"] not in ["\t", " ", "\n"], line_tokens)
+            )
+            line_tokens = sorted(line_tokens, key=lambda x: x["x"])
+            first_token = line_tokens[0]
+            last_token = line_tokens[-1]
+            left = min(left, first_token["x"])
+            right = max(right, last_token["x"] + last_token["width"])
+
+        top = LINE_HEIGHT * element["lines"][0] - LINE_HEIGHT * 5 // 6
+        bottom = LINE_HEIGHT * element["lines"][1] + LINE_HEIGHT // 4
+
+        return {"left": left - 10, "top": top, "right": right + 10, "bottom": bottom}
 
     for element in elements:
         match element["type"]:
@@ -437,29 +463,83 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
                     radius=element["radius"],
                 )
             case "line_based_rounded_rectangle":
-                # Find the first and last non-whitespace token in all lines, take the max and min x
-                left = 999999
-                right = 0
-                for line in range(element["lines"][0], element["lines"][1] + 1):
-                    line_tokens = list(filter(lambda x: x["type"] == "text" and x["line"] == line, elements))
-                    line_tokens = list(filter(lambda x: x["text"] not in ["\t", " ", "\n"], line_tokens))
-                    line_tokens = sorted(line_tokens, key=lambda x: x["x"])
-                    print(line)
-                    first_token = line_tokens[0]
-                    last_token = line_tokens[-1]
-                    left = min(left, first_token["x"])
-                    right = max(right, last_token["x"] + last_token["width"])
+                element["children"] = element.get("children", [])
+                bbox = render_rounded_rectangle(element)
 
-                top = LINE_HEIGHT * element["lines"][0] - LINE_HEIGHT * 5 // 6
-                bottom = LINE_HEIGHT * element["lines"][1]  + LINE_HEIGHT // 4
+                if len(element["children"]) > 0:
+                    print(element["children"])
+                    for child in element["children"]:
+                        child_bbox = render_rounded_rectangle(child)
+                        child["bbox"] = child_bbox
+
+                    leftmost_child = min(
+                        [child["bbox"]["left"] for child in element["children"]]
+                    )
+                    rightmost_child = max(
+                        [child["bbox"]["right"] for child in element["children"]]
+                    )
+                    topmost_child = min(
+                        [child["bbox"]["top"] for child in element["children"]]
+                    )
+                    bottommost_child = max(
+                        [child["bbox"]["bottom"] for child in element["children"]]
+                    )
+
+                    if leftmost_child == bbox["left"]:
+                        bbox["left"] -= 10
+                    if rightmost_child == bbox["right"]:
+                        bbox["right"] += 10
+                    if topmost_child == bbox["top"]:
+                        bbox["top"] -= 10
+                    if bottommost_child == bbox["bottom"]:
+                        bbox["bottom"] += 10
 
                 draw.rounded_rectangle(
-                    [left - 10, top, right + 10, bottom],
+                    (bbox["left"], bbox["top"], bbox["right"], bbox["bottom"]),
                     fill=element["fill"],
                     outline=element["outline"],
                     width=element["width"],
                     radius=element["radius"],
                 )
+
+                if element.get("label"):
+                    size = LINE_HEIGHT * 2
+                    right_offset = size if bbox["right"] + size < width - 10 else width - 10 - bbox["right"]
+                    draw.ellipse(
+                        (
+                            bbox["right"] - (size - right_offset),
+                            bbox["top"] - size,
+                            bbox["right"] + right_offset,
+                            bbox["top"],
+                        ),
+                        fill=colors["white"],
+                        outline=colors["black"],
+                        width=5,
+                    )
+
+                    draw.text(
+                        (
+                            bbox["right"] - (size - right_offset) + size // 2 - font_size // 5,
+                            bbox["top"] - size + size // 4,
+                        ),
+                        element["label"],
+                        font=fonts["B"],
+                        fill=colors["black"],
+                    )
+
+                for child in element.get("children", []):
+                    draw.rounded_rectangle(
+                        (
+                            child["bbox"]["left"],
+                            child["bbox"]["top"],
+                            child["bbox"]["right"],
+                            child["bbox"]["bottom"],
+                        ),
+                        fill=child["fill"],
+                        outline=child["outline"],
+                        width=element["width"],
+                        radius=element["radius"],
+                    )
 
     img.save(output_file)
 
@@ -494,16 +574,14 @@ Definition runLoop (fuel : nat) (cprop : CProp ∅): G Result :=
 """
 
 markers = [
-    { "lines": (9, 9), "color": "green" },
-    { "lines": (11, 11), "color": "purple" },
-    { "lines": (14, 17), "color": "red" },
-    { "lines": (19, 20), "color": "blue" },
-    { "lines": (22, 23), "color": "blue" },
+    {"lines": (9, 9), "color": "green"},
+    {"lines": (11, 11), "color": "purple"},
+    {"lines": (14, 17), "color": "red"},
+    {"lines": (19, 20), "color": "blue"},
+    {"lines": (22, 23), "color": "blue"},
 ]
 
 render_coq(code, 40, True, markers, "runLoop.png")
-
-
 
 
 code = """
@@ -550,12 +628,82 @@ Definition targetLoop (fuel : nat) (cprop : CProp ∅)
 """
 
 markers = [
-    { "lines": (11, 11), "color": "green" },
-    { "lines": (14, 14), "color": "purple" },
-    { "lines": (17, 20), "color": "red" },
-    { "lines": (22, 33), "color": "blue" },
-    { "lines": (36, 37), "color": "blue" },
+    {"lines": (11, 11), "color": "green"},
+    {"lines": (14, 14), "color": "purple"},
+    {"lines": (17, 20), "color": "red"},
+    {"lines": (22, 33), "color": "blue"},
+    {"lines": (36, 37), "color": "blue"},
 ]
 
 render_coq(code, 40, True, markers, "targetLoop.png")
 
+
+code = """
+Definition fuzzLoop (fuel : nat) (cprop : CProp ∅)
+    {Pool : Type} {poolType: @SeedPool (⟦⦗cprop⦘⟧) Z Pool}
+    (seeds : Pool) (utility: Utility) : G Result :=
+    let fix fuzzLoop' (fuel : nat) (passed : nat)
+            (discards: nat) {Pool : Type}
+            (seeds : Pool) (poolType: @SeedPool (⟦⦗cprop⦘⟧) Z Pool)
+            (utility: Utility) : G Result :=
+        match fuel with
+        | O => ret (mkResult discards false passed [])
+        | S fuel' => 
+            let directive := sample seeds in
+            res <- instrumentedGenAndRunWithDirective cprop directive withInstrumentation (log2 (passed + discards));;
+            let '(res, feedback) := res in
+            match res with
+            | Normal seed false =>
+                (* Fails *)
+                let shrinkingResult := shrinkLoop 10 cprop seed in
+                let printingResult := print cprop 0 shrinkingResult in
+                ret (mkResult discards true (passed + 1) printingResult)
+            | Normal seed true =>
+                (* Passes *)
+                match useful seeds feedback with
+                | true =>
+                    let seeds' := invest (seed, feedback) seeds in
+                    fuzzLoop' fuel' (passed + 1) discards seeds' poolType utility
+                | false =>
+                    let seeds' := match directive with
+                                    | Generate => seeds
+                                    | Mutate _ => revise seeds
+                                    end in
+                    fuzzLoop' fuel' (passed + 1) discards seeds' poolType utility
+                end
+            | Discard _ _ => 
+                (* Discard *)
+                match directive with
+                | Generate => fuzzLoop' fuel' passed (discards + 1) seeds poolType utility
+                | Mutate source =>
+                    let feedback := feedback / 3 in
+                    match useful seeds feedback with
+                    | true =>
+                        fuzzLoop' fuel' passed (discards+1) seeds poolType utility
+                    | false =>
+                        fuzzLoop' fuel' passed (discards+1) (revise seeds) poolType utility
+                    end
+                end
+            end
+        end in
+        fuzzLoop' fuel 0 0 seeds poolType utility.
+"""
+
+
+markers = [
+    {"lines": (9, 9), "color": "green", "label": "1"},
+    {"lines": (12, 12), "color": "purple", "label": "2"},
+    {"lines": (16, 19), "color": "red", "label": "3"},
+    {
+        "lines": (21, 32),
+        "color": "blue",
+        "children": [
+            {"lines": (24, 25), "color": "red"},
+            {"lines": (27, 31), "color": "red"},
+        ],
+        "label": "4"
+    },
+    {"lines": (36, 37), "color": "blue", "label": "5"},
+]
+
+render_coq(code, 40, True, markers, "fuzzLoop.png")
