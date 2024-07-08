@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # \definecolor{dkgreen}{rgb}{0,0.6,0}
 # \definecolor{ltblue}{rgb}{0,0.4,0.4}
 # \definecolor{dkviolet}{rgb}{0.3,0,0.5}
@@ -254,13 +255,18 @@ colors = {
 ligatures = {
     "forall": "∀",
     "exists": "∃",
-    "=>": "⇒",
+    "⟦": "[[",
+    "⦗": "|",
+    "⦘": "|",
+    "⟧": "]]",
     "<-": "←",
     "->": "→",
-    "<->": "↔",
     "==": "==",
     "===>": "==>",
 }
+
+print(u"\u21D2")
+
 
 
 def tokenize(code):
@@ -295,11 +301,14 @@ def line_widths(elements):
 
 def render_coq(code, font_size, line_numbers, markers, output_file):
     fonts = {
-        # "N": ImageFont.truetype("Libertine/LinLibertine_R.ttf", font_size),
+        # "N": ImageFont.truetype("Libertine/LinLibertine_R.ttf", font_size, layout_engine=ImageFont.Layout.RAQM),
+        # "N": ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", font_size, layout_engine=ImageFont.Layout.RAQM),
         # "B": ImageFont.truetype("Libertine/LinLibertine_RB.ttf", font_size),
         # "I": ImageFont.truetype("Libertine/LinLibertine_RI.ttf", font_size),
         "N": ImageFont.truetype(
-            "Inconsolata/static/Inconsolata-Regular.ttf", font_size
+            "Inconsolata/static/Inconsolata-Regular.ttf", font_size,
+            layout_engine=ImageFont.Layout.RAQM
+            # "FiraCode-Medium.ttf", font_size
         ),
         "B": ImageFont.truetype("Inconsolata/static/Inconsolata-Bold.ttf", font_size),
         # 'I': ImageFont.truetype("/Users/akeles/Programming/projects/PbtBenchmark/coderenderer/Inconsolata/static/Incosolata-Italic.ttf", font_size),
@@ -628,11 +637,20 @@ Definition targetLoop (fuel : nat) (cprop : CProp ∅)
 """
 
 markers = [
-    {"lines": (11, 11), "color": "green"},
-    {"lines": (14, 14), "color": "purple"},
-    {"lines": (17, 20), "color": "red"},
-    {"lines": (22, 33), "color": "blue"},
-    {"lines": (36, 37), "color": "blue"},
+    {"lines": (11, 11), "color": "green", "label": "1"},
+    {"lines": (14, 14), "color": "purple", "label": "2"},
+    {"lines": (17, 20), "color": "red", "label": "3"},
+    {
+        "lines": (22, 34),
+        "color": "blue",
+        "children": [
+            {"lines": (23, 23), "color": "green"},
+            {"lines": (26, 27), "color": "red"},
+            {"lines": (29, 33), "color": "red"},
+        ],
+        "label": "4"
+    },
+    {"lines": (36, 37), "color": "blue", "label": "5"},
 ]
 
 render_coq(code, 40, True, markers, "targetLoop.png")
@@ -650,7 +668,8 @@ Definition fuzzLoop (fuel : nat) (cprop : CProp ∅)
         | O => ret (mkResult discards false passed [])
         | S fuel' => 
             let directive := sample seeds in
-            res <- instrumentedGenAndRunWithDirective cprop directive withInstrumentation (log2 (passed + discards));;
+            res <- instrumentedGenAndRunWithDirective cprop directive
+                    withInstrumentation (log2 (passed + discards));;
             let '(res, feedback) := res in
             match res with
             | Normal seed false =>
@@ -692,18 +711,18 @@ Definition fuzzLoop (fuel : nat) (cprop : CProp ∅)
 
 markers = [
     {"lines": (9, 9), "color": "green", "label": "1"},
-    {"lines": (12, 12), "color": "purple", "label": "2"},
-    {"lines": (16, 19), "color": "red", "label": "3"},
+    {"lines": (12, 13), "color": "purple", "label": "2"},
+    {"lines": (17, 20), "color": "red", "label": "3"},
     {
-        "lines": (21, 32),
+        "lines": (22, 33),
         "color": "blue",
         "children": [
-            {"lines": (24, 25), "color": "red"},
-            {"lines": (27, 31), "color": "red"},
+            {"lines": (25, 26), "color": "red"},
+            {"lines": (28, 32), "color": "red"},
         ],
         "label": "4"
     },
-    {"lines": (36, 37), "color": "blue", "label": "5"},
+    {"lines": (35, 36), "color": "blue", "label": "5"},
 ]
 
 render_coq(code, 40, True, markers, "fuzzLoop.png")
