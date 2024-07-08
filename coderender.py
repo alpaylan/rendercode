@@ -124,7 +124,7 @@
 # This is a renderer for Coq code.
 
 from PIL import Image, ImageDraw, ImageFont
-
+import itertools
 
 vernacs = [
     "Section",
@@ -248,6 +248,9 @@ colors = {
     "dkred": (int(0.5 * 255), 0, 0),
     "ltred": (255, 210, 210),
     "bgred": (255, 210, 210),
+    "dkorange": (int(0.6 * 255), int(0.3 * 255), 0),
+    "ltorange": (255, 240, 220),
+    "bgorange": (255, 240, 220),
     "black": (0, 0, 0),
     "white": (255, 255, 255),
 }
@@ -320,17 +323,31 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
     elements = []
 
     def marker_to_element(marker):
-        return {
-            "type": "line_based_rounded_rectangle",
-            "lines": marker["lines"],
-            "fill": colors["bg" + marker["color"]],
-            "outline": colors["dk" + marker["color"]],
-            "children": list(map(marker_to_element, marker.get("children", []))),
-            "label": marker.get("label"),
-            "width": 3,
-            "radius": 5,
-            "z": 0,
-        }
+        if "lines" in marker:
+            return {
+                "type": "line_based_rounded_rectangle",
+                "lines": marker["lines"],
+                "fill": colors["bg" + marker["color"]],
+                "outline": colors["dk" + marker["color"]],
+                "children": list(map(marker_to_element, marker.get("children", []))),
+                "label": marker.get("label"),
+                "width": 3,
+                "radius": 5,
+                "z": 0,
+            }
+        elif "search" in marker:
+            for literal, ligature in ligatures.items():
+                marker["search"] = marker["search"].replace(literal, ligature)
+            return {
+                "type": "text_based_rounded_rectangle",
+                "search": marker["search"],
+                "mode": marker["mode"],
+                "fill": colors["bg" + marker["color"]],
+                "outline": colors["dk" + marker["color"]],
+                "width": 3,
+                "radius": 5,
+                "z": 0,
+            }
 
     for marker in markers:
         elements.append(marker_to_element(marker))
@@ -407,6 +424,7 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
                     "font": font,
                     "text": token,
                     "line": line,
+                    "number": len(elements),
                     "z": 1,
                 }
             )
@@ -548,6 +566,44 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
                         width=element["width"],
                         radius=element["radius"],
                     )
+            case "text_based_rounded_rectangle":
+                # Find the sequence of tokens that match the search string
+                tokens = tokenize(code)
+                search_tokens = tokenize(element["search"])
+                matches = []
+                print(search_tokens)
+                current_line = 1
+                for i in range(len(tokens) - len(search_tokens) + 1):
+                    if tokens[i] == "\n":
+                        current_line += 1
+                    if tokens[i : i + len(search_tokens)] == search_tokens:
+                        matches.append((i, i + len(search_tokens), current_line))
+                
+                if element["mode"] == "first":
+                    matches = matches[:1]
+                print(matches)
+                for match in matches:
+                    line = match[2]
+                    just_line_tokens = list(
+                        filter(lambda x: x["type"] == "text" and x["line"] is not None, elements)
+                    )
+                    first_token = just_line_tokens[match[0] - line  + 1]
+                    last_token = just_line_tokens[match[1] - line + 1]
+
+                    left = first_token["x"]
+                    right = last_token["x"] + last_token["width"]
+                    print(left, right)
+                    top = LINE_HEIGHT * line - LINE_HEIGHT * 5 // 6
+                    bottom = LINE_HEIGHT * line + LINE_HEIGHT // 4
+                    print(top, bottom)
+                    draw.rounded_rectangle(
+                        (left - 10, top, right - 10, bottom),
+                        fill=element["fill"],
+                        outline=element["outline"],
+                        width=element["width"],
+                        radius=element["radius"],
+                    )
+                    
 
     img.save(output_file)
 
@@ -650,6 +706,7 @@ markers = [
         "label": "4"
     },
     {"lines": (36, 37), "color": "blue", "label": "5"},
+    {"search": "(feedback_function: ⟦⦗cprop⦘⟧ -> Z)", "color": "blue", "mode": "first"},
 ]
 
 render_coq(code, 40, True, markers, "targetLoop.png")
