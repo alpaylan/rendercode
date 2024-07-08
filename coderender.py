@@ -248,9 +248,9 @@ colors = {
     "dkred": (int(0.5 * 255), 0, 0),
     "ltred": (255, 210, 210),
     "bgred": (255, 210, 210),
-    "dkorange": (int(0.6 * 255), int(0.3 * 255), 0),
-    "ltorange": (255, 240, 220),
-    "bgorange": (255, 240, 220),
+    "dkorange": (int(0.8 * 255), int(0.4 * 255), 0),
+    "ltorange": (255, int(0.8 * 255), int(0.6 * 255)),
+    "bgorange": (255, int(0.8 * 255), int(0.6 * 255)),
     "black": (0, 0, 0),
     "white": (255, 255, 255),
 }
@@ -267,8 +267,6 @@ ligatures = {
     "==": "==",
     "===>": "==>",
 }
-
-print(u"\u21D2")
 
 
 
@@ -493,7 +491,6 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
                 bbox = render_rounded_rectangle(element)
 
                 if len(element["children"]) > 0:
-                    print(element["children"])
                     for child in element["children"]:
                         child_bbox = render_rounded_rectangle(child)
                         child["bbox"] = child_bbox
@@ -571,33 +568,27 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
                 tokens = tokenize(code)
                 search_tokens = tokenize(element["search"])
                 matches = []
-                print(search_tokens)
                 current_line = 1
                 for i in range(len(tokens) - len(search_tokens) + 1):
                     if tokens[i] == "\n":
                         current_line += 1
                     if tokens[i : i + len(search_tokens)] == search_tokens:
                         matches.append((i, i + len(search_tokens), current_line))
-                
                 if element["mode"] == "first":
                     matches = matches[:1]
-                print(matches)
                 for match in matches:
                     line = match[2]
                     just_line_tokens = list(
                         filter(lambda x: x["type"] == "text" and x["line"] is not None, elements)
                     )
                     first_token = just_line_tokens[match[0] - line  + 1]
-                    last_token = just_line_tokens[match[1] - line + 1]
-
+                    last_token = just_line_tokens[match[1] - line]
                     left = first_token["x"]
                     right = last_token["x"] + last_token["width"]
-                    print(left, right)
                     top = LINE_HEIGHT * line - LINE_HEIGHT * 5 // 6
                     bottom = LINE_HEIGHT * line + LINE_HEIGHT // 4
-                    print(top, bottom)
                     draw.rounded_rectangle(
-                        (left - 10, top, right - 10, bottom),
+                        (left - 10, top, right + 10, bottom),
                         fill=element["fill"],
                         outline=element["outline"],
                         width=element["width"],
@@ -706,7 +697,10 @@ markers = [
         "label": "4"
     },
     {"lines": (36, 37), "color": "blue", "label": "5"},
-    {"search": "(feedback_function: ⟦⦗cprop⦘⟧ -> Z)", "color": "blue", "mode": "first"},
+    {"search": "(feedback_function: ⟦⦗cprop⦘⟧ -> Z)", "color": "orange", "mode": "first"},
+    {"search": "(cprop : CProp ∅)", "color": "purple", "mode": "first"},
+    {"search": "{poolType: @SeedPool (⟦⦗cprop⦘⟧) Z Pool}", "color": "red", "mode": "first"},
+    {"search": "(utility: Utility)", "color": "green", "mode": "first"},
 ]
 
 render_coq(code, 40, True, markers, "targetLoop.png")
