@@ -306,8 +306,7 @@ def render_coq(code, font_size, line_numbers, markers, output_file):
         # "B": ImageFont.truetype("Libertine/LinLibertine_RB.ttf", font_size),
         # "I": ImageFont.truetype("Libertine/LinLibertine_RI.ttf", font_size),
         "N": ImageFont.truetype(
-            "Inconsolata/static/Inconsolata-Regular.ttf", font_size,
-            layout_engine=ImageFont.Layout.RAQM
+            "Inconsolata/static/Inconsolata-Regular.ttf", font_size
             # "FiraCode-Medium.ttf", font_size
         ),
         "B": ImageFont.truetype("Inconsolata/static/Inconsolata-Bold.ttf", font_size),
